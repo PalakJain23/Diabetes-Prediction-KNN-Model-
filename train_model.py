@@ -1,34 +1,39 @@
-import pandas as pd
+from flask import Flask, render_template, request
 import numpy as np
 import pickle
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
 
-# Load dataset
-df = pd.read_csv("diabetes.csv")
+app = Flask(__name__)
 
-X = df.drop("Outcome", axis=1)
-y = df["Outcome"]
+# Load files
+model = pickle.load(open("knn_model.pkl", "rb"))
+scaler = pickle.load(open("scaler.pkl", "rb"))
 
-# Scale AFTER splitting to avoid data leakage
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
+@app.route("/")
+def home():
+    return render_template("index.html")
 
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+@app.route("/predict", methods=["POST"])
+def predict():
 
-# Best K value (odd number, small)
-knn = KNeighborsClassifier(n_neighbors=5)
+    values = [
+        float(request.form['pregnancies']),
+        float(request.form['glucose']),
+        float(request.form['bloodpressure']),
+        float(request.form['skin']),
+        float(request.form['insulin']),
+        float(request.form['bmi']),
+        float(request.form['dpf']),
+        float(request.form['age'])
+    ]
 
-knn.fit(X_train_scaled, y_train)
+    # Convert & scale
+    final_data = scaler.transform(np.array([values]))
 
-# Save model
-pickle.dump(knn, open("knn_model.pkl", "wb"))
-pickle.dump(scaler, open("scaler.pkl", "wb"))
+    # Predict
+    pred = model.predict(final_data)[0]
+    result = "Diabetic" if pred == 1 else "Not Diabetic"
 
-print("Training complete!")
-print("Train accuracy:", knn.score(X_train_scaled, y_train))
-print("Test accuracy:", knn.score(X_test_scaled, y_test))
+    return render_template("index.html", prediction_text=f"Result: {result}")
+
+if __name__ == "__main__":
+    app.run(debug=True, use_reloader=False)
